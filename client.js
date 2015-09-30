@@ -16,15 +16,36 @@ var room = function(ari, id) {
 	this.occupants = [];
 	// Underlying conference bridge
 	this.bridge = ari.Bridge();
-	this.bridge.create({type: 'mixing'});
+	this.bridge.create({type: 'mixing,dtmf_events'});
 }
-var participant = function(id, role) {
-	// Channel unique ID
-	this.id = id;
+var participant = function(channel, role) {
+	this.channel = channel;
 	// Role of the participant
 	this.role = role;
 	// Room the participant is currently in
 	this.room = null;
+	this.playback = null;
+}
+
+function play_sound(ari, participant, sound) {
+	function __play_sound(ari, participant, sound) {
+		participant.playback = ari.Playback();
+		console.log("Playing %s on channel %s", sound, participant.channel.id);
+		participant.channel.play({media: sound});
+	}
+
+	// XXX Currently participant.playback will always be non-null because we don't null it
+	// when the playback completes.
+	// XXX You can't actually control numbers in ARI, so trying to stop a room number from
+	// playing will never succeed.
+	if (participant.playback != null) {
+		console.log("Stopping playback %s on channel %s", participant.playback.id, participant.channel.id);
+		participant.playback.control({operation:'stop'}, function(err) {
+			__play_sound(ari, participant, sound);
+		})
+	} else {
+		__play_sound(ari, participant, sound);
+	}
 }
 
 function horizontal_link(left_room, right_room) {
@@ -148,7 +169,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 	function joinRoom(room, participant) {
 		if (participant.room) {
-			console.log('Channel %s leaving room %d(bridge %s)', participant.id, participant.room.id, participant.room.bridge.id);
+			console.log('Channel %s leaving room %d(bridge %s)', participant.channel.id, participant.room.id, participant.room.bridge.id);
 			var i = participant.room.occupants.indexOf(participant);
 			participant.room.occupants.splice(i, 1);
 			if (participant.role == 'seeker') {
@@ -157,19 +178,20 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		}
 		participant.room = room;
 		if (room) {
-			console.log('Channel %s entering room %d(bridge %s) as %s', participant.id, room.id, room.bridge.id, participant.role);
+			console.log('Channel %s entering room %d(bridge %s) as %s', participant.channel.id, room.id, room.bridge.id, participant.role);
 			room.occupants.push(participant);
 			// addChannel will move the channel as appropriate, we don't need to explicitly remove
 			if (participant.role == 'seeker') {
 				room.bridge.play({media: 'sound:confbridge-join'});
 			}
-			room.bridge.addChannel({channel: participant.id});
+			room.bridge.addChannel({channel: participant.channel.id});
+			play_sound(ari, participant, 'number:' + room.id);
 		}
 	}
 
 	function onDtmfReceived(event, channel) {
 		var participant = participants.filter(function(item) {
-			return item.id === channel.id;
+			return item.channel.id === channel.id;
 		})[0];
 		var nextRoom = null;
 
@@ -216,6 +238,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 		if (nextRoom == null) {
 			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
+			play_sound(ari, participant, 'sound:oops1');
 			return;
 		}
 
@@ -225,7 +248,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	function onStasisStart(event, channel) {
 		channel.answer(function(err) {
 			var room = get_random_room(rooms);
-			var joiner = new participant(channel.id, event.args[0]);
+			var joiner = new participant(channel, event.args[0]);
 			console.log('Channel %s entered app', channel.id);
 			channel.on('ChannelDtmfReceived', onDtmfReceived);
 			participants.push(joiner);
@@ -236,7 +259,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	function onStasisEnd(event, channel) {
 		console.log('Channel %s leaving hide and seek', channel.id);
                 var participant = participants.filter(function(item) {
-                        return item.id === channel.id;
+                        return item.channel.id === channel.id;
                 })[0];
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
 		joinRoom(null, participant);
