@@ -12,11 +12,19 @@ var room = function(ari, id) {
 	this.up = null;
 	// Room downward
 	this.down = null;
-	// Channel unique IDs of occupants
+	// Room occupants
 	this.occupants = [];
 	// Underlying conference bridge
 	this.bridge = ari.Bridge();
 	this.bridge.create({type: 'mixing'});
+}
+var participant = function(id, role) {
+	// Channel unique ID
+	this.id = id;
+	// Role of the participant
+	this.role = role;
+	// Room the participant is currently in
+	this.room = null;
 }
 
 function horizontal_link(left_room, right_room) {
@@ -135,16 +143,113 @@ function get_random_room(rooms) {
 }
 
 client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ari) {
-		var rooms;
+	var rooms;
+	var participants = [];
 
-		ari.on('StasisStart', function(event, incoming) {
-			incoming.answer(function(err) {
-				console.log('Channel entered app');
-				var room = get_random_room(rooms);
-				console.log('Channel entering room %d(bridge %s)', room.id, room.bridge.id);
-				room.participants.push(incoming);
-			})
-		})
-		rooms = generate_rooms(ari);
-		ari.start('hide-n-seek');
-	})
+	function joinRoom(room, participant) {
+		if (participant.room) {
+			console.log('Channel %s leaving room %d(bridge %s)', participant.id, participant.room.id, participant.room.bridge.id);
+			var i = participant.room.occupants.indexOf(participant);
+			participant.room.occupants.splice(i, 1);
+			if (participant.role == 'seeker') {
+				participant.room.bridge.play({media: 'sound:confbridge-leave'});
+			}
+		}
+		participant.room = room;
+		if (room) {
+			console.log('Channel %s entering room %d(bridge %s) as %s', participant.id, room.id, room.bridge.id, participant.role);
+			room.occupants.push(participant);
+			// addChannel will move the channel as appropriate, we don't need to explicitly remove
+			if (participant.role == 'seeker') {
+				room.bridge.play({media: 'sound:confbridge-join'});
+			}
+			room.bridge.addChannel({channel: participant.id});
+		}
+	}
+
+	function onDtmfReceived(event, channel) {
+		var participant = participants.filter(function(item) {
+			return item.id === channel.id;
+		})[0];
+		var nextRoom = null;
+
+		if (event.digit == '2') {
+			// They want to go up
+			console.log('Channel %s wants to move to the room above them', channel.id);
+			nextRoom = participant.room.up;
+		} else if (event.digit == '8') {
+			// They want to go down
+			console.log('Channel %s wants to move to the room below them', channel.id);
+			nextRoom = participant.room.down;
+		} else if (event.digit == '4') {
+			// They want to go left
+			console.log('Channel %s wants to move to the room to the left of them', channel.id);
+			nextRoom = participant.room.left;
+		} else if (event.digit == '6') {
+			// They want to go right
+			console.log('Channel %s wants to move to the room to the right of them', channel.id);
+			nextRoom = participant.room.right;
+		} else if (event.digit == '0') {
+			// They want to grab any hiding participant
+			if (participant.role != 'seeker') {
+				console.log('Channel %s wants to grab hiders but they are not a seeker', channel.id);
+				return;
+			}
+
+			console.log('Channel %s is grabbing all hiders in room %d(bridge %s)', channel.id, participant.room.id, participant.room.bridge.id);
+
+			participant.room.bridge.play({media: 'sound:beeperr'});
+
+			participant.room.occupants.forEach(function(item) {
+				if (item.role != 'hider') {
+					return;
+				}
+				console.log('Channel %s was caught by %s, they are now a seeker', item.id, channel.id);
+				item.role = 'seeker';
+			});
+
+			return;
+		} else {
+			console.log('Channel %s tried to use invalid DTMF digit %s', channel.id, event.digit);
+			return;
+		}
+
+		if (nextRoom == null) {
+			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
+			return;
+		}
+
+		joinRoom(nextRoom, participant);
+	}
+
+	function onStasisStart(event, channel) {
+		channel.answer(function(err) {
+			var room = get_random_room(rooms);
+			var joiner = new participant(channel.id, event.args[0]);
+			console.log('Channel %s entered app', channel.id);
+			channel.on('ChannelDtmfReceived', onDtmfReceived);
+			participants.push(joiner);
+			joinRoom(room, joiner);
+		});
+	}
+
+	function onStasisEnd(event, channel) {
+		console.log('Channel %s leaving hide and seek', channel.id);
+                var participant = participants.filter(function(item) {
+                        return item.id === channel.id;
+                })[0];
+		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
+		joinRoom(null, participant);
+		// Since the channel is going away remove it as a valid participant
+		var i = participants.indexOf(participant);
+		participants.splice(i, 1);
+	}
+
+	rooms = generate_rooms(ari);
+	ari.on('StasisStart', onStasisStart);
+	ari.on('StasisEnd', onStasisEnd);
+	ari.start('hide-n-seek');
+})
+.catch(function (err) {
+	console.log(err);
+});
