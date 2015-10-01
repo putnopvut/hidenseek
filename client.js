@@ -50,6 +50,14 @@ function play_sound(ari, participant, sound) {
 	}
 }
 
+function play_sound_all(rooms, sound) {
+	rooms.forEach(function(room) {
+		if (room.occupants.length > 0) {
+			room.bridge.play({media: sound});
+		}
+	});
+}
+
 function notify_observers(observers, message) {
 	observers.forEach(function(connection) {
 		connection.sendUTF(message);
@@ -175,6 +183,8 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	var rooms;
 	var participants = [];
 	var observers = [];
+	var hiders = 0;
+	var seekers = 0;
 
 	function joinRoom(room, participant) {
 		if (participant.room) {
@@ -231,8 +241,6 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 			console.log('Channel %s is grabbing all hiders in room %d(bridge %s)', channel.id, participant.room.id, participant.room.bridge.id);
 
-			participant.room.bridge.play({media: 'sound:beeperr'});
-
 			notify_observers(observers, JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id }));
 
 			participant.room.occupants.forEach(function(item) {
@@ -240,9 +248,22 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 					return;
 				}
 				console.log('Channel %s was caught by %s, they are now a seeker', item.id, channel.id);
+				hiders--;
+				seekers++;
 				item.role = 'seeker';
 				notify_observers(observers, JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id }));
 			});
+
+			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
+
+			if (hiders == 0) {
+				// All the hiders are gone, the game can end
+				console.log('The game has no hiders left in it, considering it ended');
+				notify_observers(observers, JSON.stringify({ type: 'game_ended' }));
+				play_sound_all(rooms, 'sound:beeperr');
+			} else {
+				participant.room.bridge.play({media: 'sound:beep'});
+			}
 
 			return;
 		} else {
@@ -266,9 +287,21 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			var joiner = new participant(channel, event.args[0]);
 			console.log('Channel %s entered app', channel.id);
 			channel.on('ChannelDtmfReceived', onDtmfReceived);
+			if (joiner.role == 'seeker') {
+				seekers++;
+			} else if (joiner.role == 'hider') {
+				hiders++;
+			}
+			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
 			participants.push(joiner);
 			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, role: joiner.role }));
 			joinRoom(room, joiner);
+
+			if (seekers > 0 && hiders == 1) {
+				console.log('Since both a seeker and hider are available the game is starting');
+				notify_observers(observers, JSON.stringify({ type: 'game_started' }));
+				play_sound_all(rooms, 'sound:beep');
+			}
 		});
 	}
 
@@ -277,12 +310,25 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
                 var participant = participants.filter(function(item) {
                         return item.channel.id === channel.id;
                 })[0];
+		// Drop the respective count
+		if (participant.role == 'seeker') {
+			seekers--;
+		} else if (participant.role == 'hider') {
+			hiders--;
+		}
+		console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
 		joinRoom(null, participant);
 		notify_observers(observers, JSON.stringify({ type: 'leave_game', channel: channel.id, role: participant.role }));
 		// Since the channel is going away remove it as a valid participant
 		var i = participants.indexOf(participant);
 		participants.splice(i, 1);
+
+		if (hiders == 0 || seekers == 0) {
+			console.log('The game has no hiders or seekers left in it, considering it ended');
+			notify_observers(observers, JSON.stringify({ type: 'game_ended' }));
+			play_sound_all(rooms, 'sound:beep');
+		}
 	}
 
 	function onObserverConnect(request) {
