@@ -1,6 +1,8 @@
 'use strict';
 
 var client = require('ari-client');
+var webSocketServer = require('websocket').server;
+var http = require('http');
 var room = function(ari, id) {
 	// Numerical room ID
 	this.id = id;
@@ -46,6 +48,12 @@ function play_sound(ari, participant, sound) {
 	} else {
 		__play_sound(ari, participant, sound);
 	}
+}
+
+function notify_observers(observers, message) {
+	observers.forEach(function(connection) {
+		connection.sendUTF(message);
+	});
 }
 
 function horizontal_link(left_room, right_room) {
@@ -166,6 +174,7 @@ function get_random_room(rooms) {
 client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ari) {
 	var rooms;
 	var participants = [];
+	var observers = [];
 
 	function joinRoom(room, participant) {
 		if (participant.room) {
@@ -175,6 +184,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			if (participant.role == 'seeker') {
 				participant.room.bridge.play({media: 'sound:confbridge-leave'});
 			}
+			notify_observers(observers, JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
 		}
 		participant.room = room;
 		if (room) {
@@ -186,6 +196,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			}
 			room.bridge.addChannel({channel: participant.channel.id});
 			play_sound(ari, participant, 'number:' + room.id);
+			notify_observers(observers, JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
 		}
 	}
 
@@ -222,12 +233,15 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 			participant.room.bridge.play({media: 'sound:beeperr'});
 
+			notify_observers(observers, JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id }));
+
 			participant.room.occupants.forEach(function(item) {
 				if (item.role != 'hider') {
 					return;
 				}
 				console.log('Channel %s was caught by %s, they are now a seeker', item.id, channel.id);
 				item.role = 'seeker';
+				notify_observers(observers, JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id }));
 			});
 
 			return;
@@ -239,6 +253,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		if (nextRoom == null) {
 			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
 			play_sound(ari, participant, 'sound:oops1');
+			notify_observers(observers, JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, direction: event.digit }));
 			return;
 		}
 
@@ -252,6 +267,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			console.log('Channel %s entered app', channel.id);
 			channel.on('ChannelDtmfReceived', onDtmfReceived);
 			participants.push(joiner);
+			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, role: joiner.role }));
 			joinRoom(room, joiner);
 		});
 	}
@@ -263,10 +279,38 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
                 })[0];
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
 		joinRoom(null, participant);
+		notify_observers(observers, JSON.stringify({ type: 'leave_game', channel: channel.id, role: participant.role }));
 		// Since the channel is going away remove it as a valid participant
 		var i = participants.indexOf(participant);
 		participants.splice(i, 1);
 	}
+
+	function onObserverConnect(request) {
+		console.log('New observer connection from ' + request.origin);
+
+		var connection = request.accept(null, request.origin);
+		connection.on('close', onObserverDisconnect);
+
+		observers.push(connection);
+	}
+
+	function onObserverDisconnect(connection) {
+		console.log('Observer disconnected');
+
+		var i = observers.indexOf(connection);
+		observers.splice(i, 1);
+	}
+
+	var server = http.createServer(function(request, response) {
+	});
+	server.listen(6066, function() {
+		console.log('WebSocket server listening on port 6066');
+	});
+
+	var wsServer = new webSocketServer({
+		httpServer: server
+	});
+	wsServer.on('request', onObserverConnect);
 
 	rooms = generate_rooms(ari);
 	ari.on('StasisStart', onStasisStart);
