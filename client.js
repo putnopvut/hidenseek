@@ -292,6 +292,11 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		connection.on('close', onObserverDisconnect);
 
 		observers.push(connection);
+
+		participants.forEach(function(participant) {
+			connection.sendUTF(JSON.stringify({ type: 'join_game', channel: participant.channel.id, role: participant.role }));
+			connection.sendUTF(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
+		});
 	}
 
 	function onObserverDisconnect(connection) {
