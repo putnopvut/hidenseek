@@ -20,12 +20,16 @@ var room = function(ari, id) {
 	this.bridge = ari.Bridge();
 	this.bridge.create({type: 'mixing,dtmf_events'});
 }
-var participant = function(channel, role) {
+var participant = function(channel, role, id) {
+	// Channel for the participant
 	this.channel = channel;
 	// Role of the participant
 	this.role = role;
+	// Numerical identifier of the participant
+	this.id = id;
 	// Room the participant is currently in
 	this.room = null;
+	// Current playback
 	this.playback = null;
 }
 
@@ -185,6 +189,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	var observers = [];
 	var hiders = 0;
 	var seekers = 0;
+	var participant_id = 1;
 
 	function joinRoom(room, participant) {
 		if (participant.room) {
@@ -194,7 +199,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			if (participant.role == 'seeker') {
 				participant.room.bridge.play({media: 'sound:confbridge-leave'});
 			}
-			notify_observers(observers, JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
+			notify_observers(observers, JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
 		}
 		participant.room = room;
 		if (room) {
@@ -206,7 +211,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			}
 			room.bridge.addChannel({channel: participant.channel.id});
 			play_sound(ari, participant, 'number:' + room.id);
-			notify_observers(observers, JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
+			notify_observers(observers, JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
 		}
 	}
 
@@ -241,7 +246,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 			console.log('Channel %s is grabbing all hiders in room %d(bridge %s)', channel.id, participant.room.id, participant.room.bridge.id);
 
-			notify_observers(observers, JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id }));
+			notify_observers(observers, JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id, id: participant.id }));
 
 			participant.room.occupants.forEach(function(item) {
 				if (item.role != 'hider') {
@@ -251,7 +256,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 				hiders--;
 				seekers++;
 				item.role = 'seeker';
-				notify_observers(observers, JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id }));
+				notify_observers(observers, JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id, id: item.id }));
 			});
 
 			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
@@ -274,7 +279,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		if (nextRoom == null) {
 			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
 			play_sound(ari, participant, 'sound:oops1');
-			notify_observers(observers, JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, direction: event.digit }));
+			notify_observers(observers, JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, id: participant.id, direction: event.digit }));
 			return;
 		}
 
@@ -284,7 +289,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	function onStasisStart(event, channel) {
 		channel.answer(function(err) {
 			var room = get_random_room(rooms);
-			var joiner = new participant(channel, event.args[0]);
+			var joiner = new participant(channel, event.args[0], participant_id++);
 			console.log('Channel %s entered app', channel.id);
 			channel.on('ChannelDtmfReceived', onDtmfReceived);
 			if (joiner.role == 'seeker') {
@@ -293,8 +298,10 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 				hiders++;
 			}
 			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
+			play_sound(ari, joiner, 'sound:queue-thereare');
+			play_sound(ari, joiner, 'number:' + joiner.id);
 			participants.push(joiner);
-			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, role: joiner.role }));
+			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.role, role: joiner.role }));
 			joinRoom(room, joiner);
 
 			if (seekers > 0 && hiders == 1) {
@@ -319,7 +326,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
 		joinRoom(null, participant);
-		notify_observers(observers, JSON.stringify({ type: 'leave_game', channel: channel.id, role: participant.role }));
+		notify_observers(observers, JSON.stringify({ type: 'leave_game', channel: channel.id, id: participant.id, role: participant.role }));
 		// Since the channel is going away remove it as a valid participant
 		var i = participants.indexOf(participant);
 		participants.splice(i, 1);
