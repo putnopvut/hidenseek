@@ -29,28 +29,42 @@ var participant = function(channel, role, id) {
 	this.id = id;
 	// Room the participant is currently in
 	this.room = null;
-	// Current playback
-	this.playback = null;
+	// Playback queue
+	this.playbacks = [];
 }
 
 function play_sound(ari, participant, sound) {
-	function __play_sound(ari, participant, sound) {
-		participant.playback = ari.Playback();
-		console.log("Playing %s on channel %s", sound, participant.channel.id);
-		participant.channel.play({media: sound});
+	participant.playbacks.push(sound);
+
+	function onPlaybackFinished() {
+		var played = participant.playbacks.shift();
+
+		console.log('Completed playing %s on channel %s', played, participant.channel.id);
+
+		var prompt = participant.playbacks[0];
+
+		if (prompt == null) {
+			console.log('Playback queue on channel %s is now empty', participant.channel.id);
+			return;
+		}
+
+		console.log('Playing %s on channel %s', prompt, participant.channel.id);
+		participant.channel.play({media: prompt})
+			.then(function (playback) {
+				playback.on('PlaybackFinished', onPlaybackFinished);
+			});
 	}
 
-	// XXX Currently participant.playback will always be non-null because we don't null it
-	// when the playback completes.
-	// XXX You can't actually control numbers in ARI, so trying to stop a room number from
-	// playing will never succeed.
-	if (participant.playback != null) {
-		console.log("Stopping playback %s on channel %s", participant.playback.id, participant.channel.id);
-		participant.playback.control({operation:'stop'}, function(err) {
-			__play_sound(ari, participant, sound);
-		})
+	// If this is the first thing in the queue start playing it back
+	// Otherwise it'll play in order once the current thing finishes
+	if (participant.playbacks.length == 1) {
+		console.log('Playing initial sound %s on channel %s', sound, participant.channel.id);
+                participant.channel.play({media: sound})
+                        .then(function (playback) {
+                                playback.on('PlaybackFinished', onPlaybackFinished);
+                        });
 	} else {
-		__play_sound(ari, participant, sound);
+		console.log('Something is already playing on channel %s, adding %s to queue', participant.channel.id, sound);
 	}
 }
 
@@ -314,6 +328,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			play_sound(ari, joiner, 'number:' + joiner.id);
 			participants.push(joiner);
 			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.role, role: joiner.role }));
+			play_sound(ari, joiner, 'sound:conf-enteringno');
 			joinRoom(room, joiner);
 		});
 	}
