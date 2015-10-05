@@ -221,7 +221,19 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		})[0];
 		var nextRoom = null;
 
-		if (event.digit == '2') {
+		if (event.digit == '*') {
+			if (participant.role != 'seeker') {
+				console.log('Channel %s wants to start the game but they are not a seeker', channel.id);
+				play_sound(ari, participant, 'sound:beeperr');
+				return;
+			} else if (hiders == 0) {
+				console.log('Channel %s wants to start the game but there are no hiders', channel.id);
+				play_sound(ari, participant, 'sound:beeperr');
+				return;
+			}
+			notify_observers(observers, JSON.stringify({ type: 'game_started' }));
+			play_sound_all(rooms, 'sound:beep');
+		} else if (event.digit == '2') {
 			// They want to go up
 			console.log('Channel %s wants to move to the room above them', channel.id);
 			nextRoom = participant.room.up;
@@ -303,12 +315,6 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			participants.push(joiner);
 			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.role, role: joiner.role }));
 			joinRoom(room, joiner);
-
-			if (seekers > 0 && hiders == 1) {
-				console.log('Since both a seeker and hider are available the game is starting');
-				notify_observers(observers, JSON.stringify({ type: 'game_started' }));
-				play_sound_all(rooms, 'sound:beep');
-			}
 		});
 	}
 
