@@ -327,7 +327,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			play_sound(ari, joiner, 'sound:queue-thereare');
 			play_sound(ari, joiner, 'number:' + joiner.id);
 			participants.push(joiner);
-			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.role, role: joiner.role }));
+			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.id, role: joiner.role }));
 			play_sound(ari, joiner, 'sound:conf-enteringno');
 			joinRoom(room, joiner);
 		});
