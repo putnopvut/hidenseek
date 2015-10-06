@@ -4,54 +4,7 @@ var client = require('ari-client');
 var webSocketServer = require('websocket').server;
 var http = require('http');
 var Maze = require('./maze');
-
-var participant = function(channel, role, id) {
-	// Channel for the participant
-	this.channel = channel;
-	// Role of the participant
-	this.role = role;
-	// Numerical identifier of the participant
-	this.id = id;
-	// Room the participant is currently in
-	this.room = null;
-	// Playback queue
-	this.playbacks = [];
-}
-
-function play_sound(ari, participant, sound) {
-	participant.playbacks.push(sound);
-
-	function onPlaybackFinished() {
-		var played = participant.playbacks.shift();
-
-		console.log('Completed playing %s on channel %s', played, participant.channel.id);
-
-		var prompt = participant.playbacks[0];
-
-		if (prompt == null) {
-			console.log('Playback queue on channel %s is now empty', participant.channel.id);
-			return;
-		}
-
-		console.log('Playing %s on channel %s', prompt, participant.channel.id);
-		participant.channel.play({media: prompt})
-			.then(function (playback) {
-				playback.on('PlaybackFinished', onPlaybackFinished);
-			});
-	}
-
-	// If this is the first thing in the queue start playing it back
-	// Otherwise it'll play in order once the current thing finishes
-	if (participant.playbacks.length == 1) {
-		console.log('Playing initial sound %s on channel %s', sound, participant.channel.id);
-                participant.channel.play({media: sound})
-                        .then(function (playback) {
-                                playback.on('PlaybackFinished', onPlaybackFinished);
-                        });
-	} else {
-		console.log('Something is already playing on channel %s, adding %s to queue', participant.channel.id, sound);
-	}
-}
+var Participant = require('./participant');
 
 function notify_observers(observers, message) {
 	observers.forEach(function(connection) {
@@ -86,7 +39,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 				room.bridge.play({media: 'sound:confbridge-join'});
 			}
 			room.bridge.addChannel({channel: participant.channel.id});
-			play_sound(ari, participant, 'number:' + room.id);
+			participant.play_sound(ari, 'number:' + room.id);
 			notify_observers(observers, JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
 		}
 	}
@@ -100,11 +53,11 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		if (event.digit == '*') {
 			if (participant.role != 'seeker') {
 				console.log('Channel %s wants to start the game but they are not a seeker', channel.id);
-				play_sound(ari, participant, 'sound:beeperr');
+				participant.play_sound(ari, 'sound:beeperr');
 				return;
 			} else if (hiders == 0) {
 				console.log('Channel %s wants to start the game but there are no hiders', channel.id);
-				play_sound(ari, participant, 'sound:beeperr');
+				participant.play_sound(ari, 'sound:beeperr');
 				return;
 			}
 			notify_observers(observers, JSON.stringify({ type: 'game_started' }));
@@ -166,7 +119,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 
 		if (nextRoom == null) {
 			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
-			play_sound(ari, participant, 'sound:oops1');
+			participant.play_sound(ari, 'sound:oops1');
 			notify_observers(observers, JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, id: participant.id, direction: event.digit }));
 			return;
 		}
@@ -177,7 +130,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	function onStasisStart(event, channel) {
 		channel.answer(function(err) {
 			var room = maze.get_random_room();
-			var joiner = new participant(channel, event.args[0], participant_id++);
+			var joiner = new Participant(channel, event.args[0], participant_id++);
 			console.log('Channel %s entered app', channel.id);
 			channel.on('ChannelDtmfReceived', onDtmfReceived);
 			if (joiner.role == 'seeker') {
@@ -186,11 +139,11 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 				hiders++;
 			}
 			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
-			play_sound(ari, joiner, 'sound:queue-thereare');
-			play_sound(ari, joiner, 'number:' + joiner.id);
+			joiner.play_sound(ari, 'sound:queue-thereare');
+			joiner.play_sound(ari, 'number:' + joiner.id);
 			participants.push(joiner);
 			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.id, role: joiner.role }));
-			play_sound(ari, joiner, 'sound:conf-enteringno');
+			joiner.play_sound(ari, 'sound:conf-enteringno');
 			joinRoom(room, joiner);
 		});
 	}
