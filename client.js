@@ -5,22 +5,32 @@ var webSocketServer = require('websocket').server;
 var http = require('http');
 var Maze = require('./maze');
 var Participant = require('./participant');
+var Pregame = require('./pregame');
 
-function notify_observers(observers, message) {
-	observers.forEach(function(connection) {
-		connection.sendUTF(message);
-	});
-}
+var Game = function(ari) {
+	this.ari = ari;
+	this.participants = [];
+	this.participant_id = 1;
+	this.hiders = 0;
+	this.seekers = 0;
+	this.state = new Pregame(this);
+	this.maze = new Maze(ari);
+	this.observers = []
 
-client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ari) {
-	var maze;
-	var participants = [];
-	var observers = [];
-	var hiders = 0;
-	var seekers = 0;
-	var participant_id = 1;
+	this.add_participant = function(channel, role) {
+		var participant = new Participant(channel, role, this.participant_id++);
+		if (role == 'seeker') {
+			this.seekers++;
+		} else if (role == 'hider') {
+			this.hiders++;
+		}
+		this.participants.push(participant);
+		this.notify_observers(JSON.stringify({ type: 'join_game', channel: channel.id, id: participant.id, role: participant.role }));
 
-	function joinRoom(room, participant) {
+		return participant;
+	}
+
+	this.joinRoom = function(room, participant) {
 		if (participant.room) {
 			console.log('Channel %s leaving room %d(bridge %s)', participant.channel.id, participant.room.id, participant.room.bridge.id);
 			var i = participant.room.occupants.indexOf(participant);
@@ -28,7 +38,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			if (participant.role == 'seeker') {
 				participant.room.bridge.play({media: 'sound:confbridge-leave'});
 			}
-			notify_observers(observers, JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
+			this.notify_observers(JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
 		}
 		participant.room = room;
 		if (room) {
@@ -40,137 +50,55 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 			}
 			room.bridge.addChannel({channel: participant.channel.id});
 			participant.play_sound(ari, 'number:' + room.id);
-			notify_observers(observers, JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
+			this.notify_observers(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
 		}
 	}
 
+	this.notify_observers = function(message) {
+		this.observers.forEach(function(connection) {
+			connection.sendUTF(message);
+		});
+	}
+};
+
+client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ari) {
+	var game;
+
 	function onDtmfReceived(event, channel) {
-		var participant = participants.filter(function(item) {
+		var participant = game.participants.filter(function(item) {
 			return item.channel.id === channel.id;
 		})[0];
-		var nextRoom = null;
-
-		if (event.digit == '*') {
-			if (participant.role != 'seeker') {
-				console.log('Channel %s wants to start the game but they are not a seeker', channel.id);
-				participant.play_sound(ari, 'sound:beeperr');
-				return;
-			} else if (hiders == 0) {
-				console.log('Channel %s wants to start the game but there are no hiders', channel.id);
-				participant.play_sound(ari, 'sound:beeperr');
-				return;
-			}
-			notify_observers(observers, JSON.stringify({ type: 'game_started' }));
-			maze.play_sound_all('sound:beep');
-		} else if (event.digit == '2') {
-			// They want to go up
-			console.log('Channel %s wants to move to the room above them', channel.id);
-			nextRoom = participant.room.up;
-		} else if (event.digit == '8') {
-			// They want to go down
-			console.log('Channel %s wants to move to the room below them', channel.id);
-			nextRoom = participant.room.down;
-		} else if (event.digit == '4') {
-			// They want to go left
-			console.log('Channel %s wants to move to the room to the left of them', channel.id);
-			nextRoom = participant.room.left;
-		} else if (event.digit == '6') {
-			// They want to go right
-			console.log('Channel %s wants to move to the room to the right of them', channel.id);
-			nextRoom = participant.room.right;
-		} else if (event.digit == '0') {
-			// They want to grab any hiding participant
-			if (participant.role != 'seeker') {
-				console.log('Channel %s wants to grab hiders but they are not a seeker', channel.id);
-				return;
-			}
-
-			console.log('Channel %s is grabbing all hiders in room %d(bridge %s)', channel.id, participant.room.id, participant.room.bridge.id);
-
-			notify_observers(observers, JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id, id: participant.id }));
-
-			participant.room.occupants.forEach(function(item) {
-				if (item.role != 'hider') {
-					return;
-				}
-				console.log('Channel %s was caught by %s, they are now a seeker', item.id, channel.id);
-				hiders--;
-				seekers++;
-				item.role = 'seeker';
-				notify_observers(observers, JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id, id: item.id }));
-			});
-
-			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
-
-			if (hiders == 0) {
-				// All the hiders are gone, the game can end
-				console.log('The game has no hiders left in it, considering it ended');
-				notify_observers(observers, JSON.stringify({ type: 'game_ended' }));
-				maze.play_sound_all('sound:beeperr');
-			} else {
-				participant.room.bridge.play({media: 'sound:beep'});
-			}
-
-			return;
-		} else {
-			console.log('Channel %s tried to use invalid DTMF digit %s', channel.id, event.digit);
-			return;
-		}
-
-		if (nextRoom == null) {
-			console.log('Channel %s tried to move in a direction where no room exists', channel.id);
-			participant.play_sound(ari, 'sound:oops1');
-			notify_observers(observers, JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, id: participant.id, direction: event.digit }));
-			return;
-		}
-
-		joinRoom(nextRoom, participant);
+		game.state.onDtmfReceived(event, participant);
 	}
 
 	function onStasisStart(event, channel) {
-		channel.answer(function(err) {
-			var room = maze.get_random_room();
-			var joiner = new Participant(channel, event.args[0], participant_id++);
-			console.log('Channel %s entered app', channel.id);
-			channel.on('ChannelDtmfReceived', onDtmfReceived);
-			if (joiner.role == 'seeker') {
-				seekers++;
-			} else if (joiner.role == 'hider') {
-				hiders++;
-			}
-			console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
-			joiner.play_sound(ari, 'sound:queue-thereare');
-			joiner.play_sound(ari, 'number:' + joiner.id);
-			participants.push(joiner);
-			notify_observers(observers, JSON.stringify({ type: 'join_game', channel: channel.id, id: joiner.id, role: joiner.role }));
-			joiner.play_sound(ari, 'sound:conf-enteringno');
-			joinRoom(room, joiner);
-		});
+		game.state.onStasisStart(event, channel);
+		channel.on('ChannelDtmfReceived', onDtmfReceived);
 	}
 
 	function onStasisEnd(event, channel) {
 		console.log('Channel %s leaving hide and seek', channel.id);
-                var participant = participants.filter(function(item) {
+                var participant = game.participants.filter(function(item) {
                         return item.channel.id === channel.id;
                 })[0];
 		// Drop the respective count
 		if (participant.role == 'seeker') {
-			seekers--;
+			game.seekers--;
 		} else if (participant.role == 'hider') {
-			hiders--;
+			game.hiders--;
 		}
-		console.log('Seeker count is now %d and hider count is now %d', seekers, hiders);
+		console.log('Seeker count is now %d and hider count is now %d', game.seekers, game.hiders);
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
-		joinRoom(null, participant);
-		notify_observers(observers, JSON.stringify({ type: 'leave_game', channel: channel.id, id: participant.id, role: participant.role }));
+		game.joinRoom(null, participant);
+		game.notify_observers(JSON.stringify({ type: 'leave_game', channel: channel.id, id: participant.id, role: participant.role }));
 		// Since the channel is going away remove it as a valid participant
-		var i = participants.indexOf(participant);
-		participants.splice(i, 1);
+		var i = game.participants.indexOf(participant);
+		game.participants.splice(i, 1);
 
-		if (hiders == 0 || seekers == 0) {
+		if (game.hiders == 0 || game.seekers == 0) {
 			console.log('The game has no hiders or seekers left in it, considering it ended');
-			notify_observers(observers, JSON.stringify({ type: 'game_ended' }));
-			maze.play_sound_all('sound:beep');
+			game.notify_observers(JSON.stringify({ type: 'game_ended' }));
+			game.maze.play_sound_all('sound:beep');
 		}
 	}
 
@@ -180,9 +108,9 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 		var connection = request.accept(null, request.origin);
 		connection.on('close', onObserverDisconnect);
 
-		observers.push(connection);
+		game.observers.push(connection);
 
-		participants.forEach(function(participant) {
+		game.participants.forEach(function(participant) {
 			connection.sendUTF(JSON.stringify({ type: 'join_game', channel: participant.channel.id, role: participant.role }));
 			connection.sendUTF(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, role: participant.role }));
 		});
@@ -191,8 +119,8 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	function onObserverDisconnect(connection) {
 		console.log('Observer disconnected');
 
-		var i = observers.indexOf(connection);
-		observers.splice(i, 1);
+		var i = games.observers.indexOf(connection);
+		games.observers.splice(i, 1);
 	}
 
 	var server = http.createServer(function(request, response) {
@@ -206,7 +134,7 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	});
 	wsServer.on('request', onObserverConnect);
 
-	maze = new Maze(ari);
+	game = new Game(ari);
 	ari.on('StasisStart', onStasisStart);
 	ari.on('StasisEnd', onStasisEnd);
 	ari.start('hide-n-seek');
