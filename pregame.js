@@ -25,7 +25,7 @@ var Pregame = function(game) {
 				participant.play_sound(game.ari, 'sound:beeperr');
 				return;
 			}
-			game.notify_observers(JSON.stringify({ type: 'game_started' }));
+			game.webSocketServer.notify_observers(JSON.stringify({ type: 'game_started' }));
 			game.maze.play_sound_all('sound:beep');
 			//XXX This transition should probably be less explicit and hidden inside a game state machine.
 			game.state = new Playing(game);
