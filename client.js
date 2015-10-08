@@ -18,7 +18,7 @@ var Game = function(ari) {
 	this.state = new Pregame(this);
 	this.maze = new Maze(ari);
 
-	this.webSocketServer = new WebSocket();
+	this.webSocketServer = new WebSocket(this);
 
 	this.add_participant = function(channel, role) {
 		var participant = new Participant(channel, role, this.participant_id++);
