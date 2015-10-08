@@ -1,10 +1,10 @@
 'use strict';
 
 var client = require('ari-client');
-var Maze = require('./maze');
-var Participant = require('./participant');
-var Pregame = require('./pregame');
-var WebSocket = require('./ws');
+var Maze = require('./app/maze');
+var Participant = require('./app/participant');
+var Pregame = require('./app/pregame');
+var WebSocket = require('./app/ws');
 
 var host = process.env.HOST || 'http://127.0.0.1';
 var port = process.env.PORT || '8088';

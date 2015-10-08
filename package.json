@@ -1,0 +1,9 @@
+{
+  "name": "hidenseek",
+  "version": "0.0.1",
+  "dependencies": {
+    "express": "~4.9.0",
+    "ari-client": "latest",
+    "websocket": "latest"
+  }
+}
