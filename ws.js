@@ -1,3 +1,4 @@
+var http = require('http');
 var webSocketServer = require('websocket').server;
 
 var WebSocket = function(game) {

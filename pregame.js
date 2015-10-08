@@ -30,7 +30,7 @@ var Pregame = function(game) {
 			//XXX This transition should probably be less explicit and hidden inside a game state machine.
 			game.state = new Playing(game);
 		} else {
-			console.log('Channel %s pressed DTMF %s but that is invalid in the Pregame state');
+			console.log('Channel %s pressed DTMF %s but that is invalid in the Pregame state', participant.channel.id, event.digit);
 		}
 	}
 };

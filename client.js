@@ -1,11 +1,10 @@
 'use strict';
 
 var client = require('ari-client');
-var webSocketServer = require('websocket').server;
-var http = require('http');
 var Maze = require('./maze');
 var Participant = require('./participant');
 var Pregame = require('./pregame');
+var WebSocket = require('./ws');
 
 var Game = function(ari) {
 	this.ari = ari;
@@ -16,7 +15,7 @@ var Game = function(ari) {
 	this.state = new Pregame(this);
 	this.maze = new Maze(ari);
 
-	game.webSocketServer = new Websocket();
+	this.webSocketServer = new WebSocket();
 
 	this.add_participant = function(channel, role) {
 		var participant = new Participant(channel, role, this.participant_id++);
