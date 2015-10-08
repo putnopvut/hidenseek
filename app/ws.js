@@ -2,6 +2,7 @@ var http = require('http');
 var webSocketServer = require('websocket').server;
 
 var WebSocket = function(game) {
+	var self = this;
 	this.observers = [];
 
 	function onObserverConnect(request) {
@@ -10,7 +11,7 @@ var WebSocket = function(game) {
 		var connection = request.accept(null, request.origin);
 		connection.on('close', onObserverDisconnect);
 
-		game.observers.push(connection);
+		self.observers.push(connection);
 
 		game.participants.forEach(function(participant) {
 			connection.sendUTF(JSON.stringify({ type: 'join_game', channel: participant.channel.id, role: participant.role }));
@@ -21,8 +22,8 @@ var WebSocket = function(game) {
 	function onObserverDisconnect(connection) {
 		console.log('Observer disconnected');
 
-		var i = games.observers.indexOf(connection);
-		games.observers.splice(i, 1);
+		var i = self.observers.indexOf(connection);
+		self.observers.splice(i, 1);
 	}
 
 	var server = http.createServer(function(request, response) {
@@ -37,7 +38,7 @@ var WebSocket = function(game) {
 	wsServer.on('request', onObserverConnect);
 
 	this.notify_observers = function(message) {
-		this.observers.forEach(function(connection) {
+		self.observers.forEach(function(connection) {
 			connection.sendUTF(message);
 		});
 	}
