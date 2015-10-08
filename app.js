@@ -2,6 +2,7 @@
 
 var client = require('ari-client');
 var Game = require('./app/game');
+var express = require('express');
 
 var host = process.env.HOST || 'http://127.0.0.1';
 var port = process.env.PORT || '8088';
@@ -56,4 +57,11 @@ client.connect(host + ':' + port, 'asterisk', 'asterisk')
 })
 .catch(function (err) {
 	console.log(err); // TODO: don't know why this isn't called on invalid host/port
+});
+
+var app = express();
+app.use(express.static('frontend'));
+var webserverPort = process.env.WEBSERVERPORT || 3000;
+app.listen(webserverPort, function() {
+	console.log('static webserver listening on port ' + webserverPort);
 });
