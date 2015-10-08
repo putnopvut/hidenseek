@@ -6,6 +6,9 @@ var Participant = require('./participant');
 var Pregame = require('./pregame');
 var WebSocket = require('./ws');
 
+var host = process.env.HOST || 'http://127.0.0.1';
+var port = process.env.PORT || '8088';
+
 var Game = function(ari) {
 	this.ari = ari;
 	this.participants = [];
@@ -55,7 +58,9 @@ var Game = function(ari) {
 	}
 };
 
-client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ari) {
+console.log('connecting to Asterisk on ' + host + ':' + port);
+client.connect(host + ':' + port, 'asterisk', 'asterisk')
+.then(function(ari) {
 	var game;
 
 	function onDtmfReceived(event, channel) {
@@ -102,5 +107,5 @@ client.connect('http://127.0.0.1:8088', 'asterisk', 'asterisk', function(err, ar
 	ari.start('hide-n-seek');
 })
 .catch(function (err) {
-	console.log(err);
+	console.log(err); // TODO: don't know why this isn't called on invalid host/port
 });
