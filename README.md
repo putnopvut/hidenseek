@@ -4,11 +4,10 @@ Asterisk ARI Hide 'n' Seek
 This provides a simple Hide 'n' Seek game that demonstrates the Asterisk Rest Interface (ARI) in a fun way.
 
 # Installation
-This game has two dependencies, the "websocket" and "ari-client" npm modules. To install these, simply run the following
+This game has a few dependencies, such as the "websocket" and "ari-client" npm modules, which are listed in the package.json file. To install these, simply run the following
 from your command line.
 ````
-npm install websocket
-npm install ari-client
+npm install
 ````
 
 # Asterisk configuration
@@ -51,8 +50,15 @@ With this setup, callers who dial 500 will be hiders, and callers who dial 501 w
 
 # Running the application
 Once you have Asterisk configured, and you have the prerequisites installed, running the app simply requires you to start
-Asterisk, and then run
+Asterisk, and then run the following with HOST and PORT set to your Asterisk HOST and PORT
 ````
-./client.js
+export HOST=http://localhost
+export PORT=8088
+node app.js
 ````
-from your checkout of this repo. The client will connect to Asterisk and will be ready to accept incoming calls. Enjoy!
+from your checkout of this repo. The client will connect to Asterisk and will be ready to accept incoming calls.
+
+# Viewing the game from a browser
+Point your browser at http://localhost:3000
+
+Enjoy!
