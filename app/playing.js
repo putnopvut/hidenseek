@@ -32,7 +32,7 @@ var Playing = function(game) {
 
 			console.log('Channel %s is grabbing all hiders in room %d(bridge %s)', participant.channel.id, participant.room.id, participant.room.bridge.id);
 
-			game.webSocketServer.notify_observers(JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id, id: participant.id }));
+			game.webSocketServer.notifyObservers(JSON.stringify({ type: 'catch_attempt', room: participant.room.id, channel: participant.channel.id, id: participant.id }));
 
 			participant.room.occupants.forEach(function(item) {
 				if (item.role != 'hider') {
@@ -42,7 +42,7 @@ var Playing = function(game) {
 				game.hiders--;
 				game.seekers++;
 				item.role = 'seeker';
-				game.webSocketServer.notify_observers(JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id, id: item.id }));
+				game.webSocketServer.notifyObservers(JSON.stringify({ type: 'hider_caught', room: participant.room.id, channel: item.channel.id, id: item.id }));
 			});
 
 			console.log('Seeker count is now %d and hider count is now %d', game.seekers, game.hiders);
@@ -50,8 +50,8 @@ var Playing = function(game) {
 			if (game.hiders == 0) {
 				// All the hiders are gone, the game can end
 				console.log('The game has no hiders left in it, considering it ended');
-				game.webSocketServer.notify_observers(JSON.stringify({ type: 'game_ended' }));
-				game.maze.play_sound_all('sound:beeperr');
+				game.webSocketServer.notifyObservers(JSON.stringify({ type: 'game_ended' }));
+				game.maze.playSoundAll('sound:beeperr');
 				//XXX Transition to next state (Maybe allocate a new game and go back to pregame?)
 			} else {
 				participant.room.bridge.play({media: 'sound:beep'});
@@ -62,8 +62,8 @@ var Playing = function(game) {
 
 		if (nextRoom == null) {
 			console.log('Channel %s tried to move in a direction where no room exists', participant.channel.id);
-			participant.play_sound(game.ari, 'sound:oops1');
-			game.webSocketServer.notify_observers(JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, id: participant.id, direction: event.digit }));
+			participant.playSound(game.ari, 'sound:oops1');
+			game.webSocketServer.notifyObservers(JSON.stringify({ type: 'invalid_room_move', room: participant.room.id, channel: participant.channel.id, id: participant.id, direction: event.digit }));
 			return;
 		}
 

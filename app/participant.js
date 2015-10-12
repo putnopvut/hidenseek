@@ -10,7 +10,7 @@ var Participant = function(channel, role, id) {
 	// Playback queue
 	this.playbacks = [];
 
-	this.play_sound = function(ari, sound) {
+	this.playSound = function(ari, sound) {
 		var participant = this;
 		participant.playbacks.push(sound);
 

@@ -6,7 +6,7 @@ var WebSocket = require('./ws');
 var Game = function(ari) {
   this.ari = ari;
   this.participants = [];
-  this.participant_id = 1;
+  this.participantID = 1;
   this.hiders = 0;
   this.seekers = 0;
   this.state = new Pregame(this);
@@ -14,15 +14,15 @@ var Game = function(ari) {
 
   this.webSocketServer = new WebSocket(this);
 
-  this.add_participant = function(channel, role) {
-    var participant = new Participant(channel, role, this.participant_id++);
+  this.addParticipant = function(channel, role) {
+    var participant = new Participant(channel, role, this.participantID++);
     if (role == 'seeker') {
       this.seekers++;
     } else if (role == 'hider') {
       this.hiders++;
     }
     this.participants.push(participant);
-    this.webSocketServer.notify_observers(JSON.stringify({ type: 'join_game', channel: channel.id, id: participant.id, role: participant.role }));
+    this.webSocketServer.notifyObservers(JSON.stringify({ type: 'join_game', channel: channel.id, id: participant.id, role: participant.role }));
 
     return participant;
   }
@@ -35,7 +35,7 @@ var Game = function(ari) {
       if (participant.role == 'seeker') {
         participant.room.bridge.play({media: 'sound:confbridge-leave'});
       }
-      this.webSocketServer.notify_observers(JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
+      this.webSocketServer.notifyObservers(JSON.stringify({ type: 'leave_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
     }
     participant.room = room;
     if (room) {
@@ -46,8 +46,8 @@ var Game = function(ari) {
         room.bridge.play({media: 'sound:confbridge-join'});
       }
       room.bridge.addChannel({channel: participant.channel.id});
-      participant.play_sound(ari, 'number:' + room.id);
-      this.webSocketServer.notify_observers(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
+      participant.playSound(ari, 'number:' + room.id);
+      this.webSocketServer.notifyObservers(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
     }
   }
 };

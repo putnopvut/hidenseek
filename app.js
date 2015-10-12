@@ -38,15 +38,15 @@ client.connect(host + ':' + port, 'asterisk', 'asterisk')
 		console.log('Seeker count is now %d and hider count is now %d', game.seekers, game.hiders);
 		// It's safe to call joinRoom with a null room, it'll just end up removing it from the one it is in
 		game.joinRoom(null, participant);
-		game.webSocketServer.notify_observers(JSON.stringify({ type: 'leave_game', channel: channel.id, id: participant.id, role: participant.role }));
+		game.webSocketServer.notifyObservers(JSON.stringify({ type: 'leave_game', channel: channel.id, id: participant.id, role: participant.role }));
 		// Since the channel is going away remove it as a valid participant
 		var i = game.participants.indexOf(participant);
 		game.participants.splice(i, 1);
 
 		if (game.hiders == 0 || game.seekers == 0) {
 			console.log('The game has no hiders or seekers left in it, considering it ended');
-			game.webSocketServer.notify_observers(JSON.stringify({ type: 'game_ended' }));
-			game.maze.play_sound_all('sound:beep');
+			game.webSocketServer.notifyObservers(JSON.stringify({ type: 'game_ended' }));
+			game.maze.playSoundAll('sound:beep');
 		}
 	}
 

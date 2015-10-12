@@ -3,13 +3,13 @@ var Playing = require('./playing');
 var Pregame = function(game) {
 	this.onStasisStart = function(event, channel) {
 		channel.answer(function(err) {
-			var room = game.maze.get_random_room();
-			var joiner = game.add_participant(channel, event.args[0]);
+			var room = game.maze.getRandomRoom();
+			var joiner = game.addParticipant(channel, event.args[0]);
 			console.log('Channel %s entered app', channel.id);
 			console.log('Seeker count is now %d and hider count is now %d', game.seekers, game.hiders);
-			joiner.play_sound(game.ari, 'sound:queue-thereare');
-			joiner.play_sound(game.ari, 'number:' + joiner.id);
-			joiner.play_sound(game.ari, 'sound:conf-enteringno');
+			joiner.playSound(game.ari, 'sound:queue-thereare');
+			joiner.playSound(game.ari, 'number:' + joiner.id);
+			joiner.playSound(game.ari, 'sound:conf-enteringno');
 			game.joinRoom(room, joiner);
 		});
 	}
@@ -18,15 +18,15 @@ var Pregame = function(game) {
 		if (event.digit == '*') {
 			if (participant.role != 'seeker') {
 				console.log('Channel %s wants to start the game but they are not a seeker', participant.channel.id);
-				participant.play_sound(game.ari, 'sound:beeperr');
+				participant.playSound(game.ari, 'sound:beeperr');
 				return;
 			} else if (game.hiders == 0) {
 				console.log('Channel %s wants to start the game but there are no hiders', participant.channel.id);
-				participant.play_sound(game.ari, 'sound:beeperr');
+				participant.playSound(game.ari, 'sound:beeperr');
 				return;
 			}
-			game.webSocketServer.notify_observers(JSON.stringify({ type: 'game_started' }));
-			game.maze.play_sound_all('sound:beep');
+			game.webSocketServer.notifyObservers(JSON.stringify({ type: 'game_started' }));
+			game.maze.playSoundAll('sound:beep');
 			//XXX This transition should probably be less explicit and hidden inside a game state machine.
 			game.state = new Playing(game);
 		} else {

@@ -37,7 +37,7 @@ var WebSocket = function(game) {
 	});
 	wsServer.on('request', onObserverConnect);
 
-	this.notify_observers = function(message) {
+	this.notifyObservers = function(message) {
 		self.observers.forEach(function(connection) {
 			connection.sendUTF(message);
 		});
