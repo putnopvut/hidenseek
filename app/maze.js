@@ -108,6 +108,12 @@ var Maze = function(ari) {
 			}
 		});
 	}
+
+	this.end = function() {
+		for (var i = 0; i < this.rooms.length; i++) {
+			this.rooms[i].bridge.destroy();
+		}
+	}
 };
 
 module.exports = Maze;

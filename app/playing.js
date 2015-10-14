@@ -53,6 +53,8 @@ var Playing = function(game) {
 				game.webSocketServer.notifyObservers(JSON.stringify({ type: 'game_ended' }));
 				game.maze.playSoundAll('sound:beeperr');
 				//XXX Transition to next state (Maybe allocate a new game and go back to pregame?)
+				//
+				game.ari.emit("GameOver");
 			} else {
 				participant.room.bridge.play({media: 'sound:beep'});
 			}

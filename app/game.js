@@ -50,6 +50,13 @@ var Game = function(ari) {
       this.webSocketServer.notifyObservers(JSON.stringify({ type: 'join_room', room: participant.room.id, channel: participant.channel.id, id: participant.id, role: participant.role }));
     }
   }
+
+  this.end = function() {
+	  for (var i = 0; i < this.participants.length; i++) {
+		  this.participants[i].channel.hangup();
+	  }
+	  this.maze.end();
+  }
 };
 
 module.exports = Game;
