@@ -32,7 +32,6 @@ function onGameMessage(evt) {
       break;
   }
   updateBoard();
-  console.log(players.bob, players.alice);
 }
 
 function onLeaveRoom(evt) {
