@@ -3,7 +3,7 @@ var Maze = require('./maze');
 var Participant = require('./participant');
 var WebSocket = require('./ws');
 
-var Game = function(ari) {
+var Game = function(ari, websock) {
   this.ari = ari;
   this.participants = [];
   this.participantID = 1;
@@ -12,7 +12,11 @@ var Game = function(ari) {
   this.state = new Pregame(this);
   this.maze = new Maze(ari);
 
-  this.webSocketServer = new WebSocket(this);
+  if (websock != null) {
+	  this.webSocketServer = websock;
+  } else {
+	  this.webSocketServer = new WebSocket(this);
+  }
 
   this.addParticipant = function(channel, role) {
     var participant = new Participant(channel, role, this.participantID++);

@@ -57,10 +57,10 @@ client.connect(host + ':' + port, 'asterisk', 'asterisk')
 		//state to pregame so another game
 		//can commence.
 		game.end();
-		game = new Game(ari);
+		game = new Game(ari, game.webSocketServer);
 	}
 
-	game = new Game(ari);
+	game = new Game(ari, null);
 	ari.on('StasisStart', onStasisStart);
 	ari.on('StasisEnd', onStasisEnd);
 	ari.on('GameOver', onGameOver);
