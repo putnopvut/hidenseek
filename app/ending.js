@@ -10,3 +10,5 @@ var Ending = function(game) {
 
 	this.game.end();
 }
+
+module.exports = Ending;

@@ -1,3 +1,5 @@
+var Ending = require('./ending.js');
+
 var Playing = function(game) {
 	this.onStasisStart = function(event, channel) {
 		console.log('Channel %s is trying to enter after the game has started');
