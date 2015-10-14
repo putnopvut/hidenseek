@@ -8,7 +8,7 @@ var Ending = function(game) {
 		return;
 	}
 
-	this.game.end();
+	game.end();
 }
 
 module.exports = Ending;
