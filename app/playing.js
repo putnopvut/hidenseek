@@ -54,7 +54,7 @@ var Playing = function(game) {
 				game.maze.playSoundAll('sound:beeperr');
 				//XXX Transition to next state (Maybe allocate a new game and go back to pregame?)
 				//
-				game.ari.emit("GameOver");
+				game.state = new Ending(game);
 			} else {
 				participant.room.bridge.play({media: 'sound:beep'});
 			}

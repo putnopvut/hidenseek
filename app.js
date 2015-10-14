@@ -50,20 +50,9 @@ client.connect(host + ':' + port, 'asterisk', 'asterisk')
 		}
 	}
 
-	function onGameOver(event) {
-		//Remove all channels from the
-		//current game, reset the hiders
-		//and seekers to 0, and set the
-		//state to pregame so another game
-		//can commence.
-		game.end();
-		game = new Game(ari, game.webSocketServer);
-	}
-
 	game = new Game(ari, null);
 	ari.on('StasisStart', onStasisStart);
 	ari.on('StasisEnd', onStasisEnd);
-	ari.on('GameOver', onGameOver);
 	ari.start('hide-n-seek');
 })
 .catch(function (err) {
