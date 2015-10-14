@@ -59,6 +59,11 @@ function onCatchAttempt(evt) {
 function onHiderCaught(evt) {
   console.log('onHiderCaught', evt);
   createjs.Sound.play('hider-caught');
+  // switch our hider to a seeker
+  var img = document.createElement('img');
+  img.src = 'images/seeker.png';
+  players[evt.channel].sprite.image = img;
+  players[evt.channel].role = 'seeker';
 }
 
 function onInvalidRoomMove(evt) {

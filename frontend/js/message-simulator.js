@@ -220,6 +220,24 @@ var messages = [
       channel: 'bob'
     })
   },
+  
+  function() {
+    onGameMessage({
+      type: 'leave_room',
+      room: '5',
+      channel: 'alice',
+      role: 'seeker' 
+    })
+  },
+
+  function() {
+    onGameMessage({
+      type: 'join_room',
+      room: '6',
+      channel: 'alice',
+      role: 'seeker' 
+    })
+  },
 
 
   function() {
